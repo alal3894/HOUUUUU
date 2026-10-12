@@ -16,10 +16,9 @@
 
     /* 캐릭터 */
     .char { display: flex; align-items: center; gap: 12px; }
-    .cat { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
-           justify-content: center; font-size: 48px; flex-shrink: 0; overflow: hidden; }
-    .cat img { width: 100%; height: 100%; object-fit: contain; }
-    .cat.yellow { background: #ffe08a; } .cat.gray { background: #cfcfcf; } .cat.black { background: #666; }
+    .cat { width: 96px; height: 96px; display: flex; align-items: center;
+           justify-content: center; font-size: 48px; flex-shrink: 0; }
+    .cat img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 
     /* 주간 / 월간 칸 */
     .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
@@ -59,9 +58,9 @@
     #poke-banner { background: #fff3bf; border: 1px solid #ffd43b; border-radius: 10px;
                    padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
     #poke-banner .row { padding: 2px 0; }
-    .mini-cat { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center;
+    .mini-cat { width: 40px; height: 40px; display: inline-flex; align-items: center;
                 justify-content: center; font-size: 18px; flex-shrink: 0; }
-    .mini-cat.yellow { background: #ffe08a; } .mini-cat.gray { background: #cfcfcf; } .mini-cat.black { background: #666; }
+    .mini-cat img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
     dialog { max-height: 88vh; overflow-y: auto; }
     #fd-cal .cell { min-height: 60px; }
     .poke-btn { border: none; background: #fff3bf; border-radius: 50%; width: 58px; height: 58px;
@@ -322,7 +321,7 @@
 
     // 호스트(밴드 일정을 올릴 수 있는 사람)의 구글 이메일. 여러 명이면 쉼표로 추가
     // ※ Firestore 보안 규칙에도 같은 이메일을 넣어야 실제로 막힙니다.
-    const HOST_EMAILS = ["alal3894@gmail.com","in4282@gmail.com"];
+    const HOST_EMAILS = ["alal3894@gmail.com","in4282@gamil.com"];
 
     // 레벨 규칙: 이번 달 일일 미션 완료 횟수 → 레벨 (매달 초기화)
     // 1회=Lv.1, 2회=Lv.2, 3회=Lv.3, 4회=Lv.4, 5회 이상=Lv.5 (0회는 Lv.1로 표시)
@@ -330,9 +329,25 @@
       return Math.min(Math.max(count, 1), 5);
     }
 
-    // 고양이 이미지: 디자인이 나오면 경로를 채우면 됨. 비어 있으면 이모지로 표시
-    // 예) CAT_IMAGES.yellow[3] = "images/yellow_lv3.png"
-    const CAT_IMAGES = { yellow: {}, gray: {}, black: {} };
+    // 고양이 이미지 (images 폴더 안에 있어야 함)
+    //   default : 기본 모습
+    //   happy   : 일일 미션 완료 시 5초간
+    //   sad     : 일일 미션 취소 시 5초간
+    //   evolve  : 레벨 5 달성 시 기본 모습으로 대체
+    const CAT_IMAGES = {
+      yellow: { default: "images/yellow_default.png", happy: "images/yellow_happy.png", sad: "images/yellow_sad.png", evolve: "images/yellow_evolve.png" },
+      gray:   { default: "images/gray_default.png",   happy: "images/gray_happy.png",   sad: "images/gray_sad.png",   evolve: "images/gray_evolve.png" },
+      black:  { default: "images/black_default.png",  happy: "images/black_happy.png",  sad: "images/black_sad.png",  evolve: "images/black_evolve.png" }
+    };
+    const MOOD_SECONDS = 5;   // 기쁨/슬픔 모습을 보여주는 시간(초)
+    const EVOLVE_LEVEL = 5;   // 이 레벨 이상이면 기본 모습이 진화한 모습으로 바뀜
+
+    // 지금 보여줄 고양이 이미지 경로 (mood: null | "happy" | "sad")
+    function catImg(color, level, mood) {
+      const set = CAT_IMAGES[color] || CAT_IMAGES.yellow;
+      if (mood && set[mood]) return set[mood];
+      return level >= EVOLVE_LEVEL ? set.evolve : set.default;
+    }
 
     // 고양이 말풍선 문구 (레벨별) - 원하는 문구로 바꿔도 됨
     const CAT_SAYINGS = {
@@ -365,6 +380,17 @@
     let monthCursor = { y: 0, m: 0 };
     let unsubs = [];
     let editingSongId = null;   // 수정 중인 곡 (없으면 null)
+    let mood = null;            // 내 고양이의 임시 표정: null | "happy" | "sad"
+    let moodTimer = null;
+
+    // 일일 미션 완료/취소 후 5초 동안 표정을 바꿨다가 기본 모습으로 되돌림
+    function setMood(m) {
+      clearTimeout(moodTimer);
+      mood = m;
+      render();
+      moodTimer = setTimeout(() => { mood = null; render(); }, MOOD_SECONDS * 1000);
+    }
+    function clearMood() { clearTimeout(moodTimer); mood = null; }
 
     // 초대 링크(?invite=...)로 들어왔다면 기억해 둠 (로그인/캐릭터 생성 후 처리)
     const inviteFromUrl = new URLSearchParams(location.search).get("invite");
@@ -385,7 +411,7 @@
         alert("로그인에 실패했습니다.\n에러 코드: " + (e.code || e.message));
       }
     };
-    $("logout-btn").onclick = () => signOut(auth);
+    $("logout-btn").onclick = () => { clearMood(); signOut(auth); };
 
     onAuthStateChanged(auth, async (u) => {
       unsubs.forEach(f => f()); unsubs = [];
@@ -447,9 +473,9 @@
       const count = [...missions].filter(d => d.startsWith(thisMonth)).length;
       const level = levelFor(count);
       const isHost = HOST_EMAILS.includes(user.email);
-      const img = CAT_IMAGES[profile.catColor]?.[level];
-      $("cat").className = "cat " + profile.catColor;
-      $("cat").innerHTML = img ? `<img src="${esc(img)}" alt="">` : "🐱";
+      const img = catImg(profile.catColor, level, mood);
+      $("cat").className = "cat";
+      $("cat").innerHTML = `<img src="${esc(img)}" alt="${esc(profile.name)}">`;
       $("char-name").textContent = profile.name;
       $("char-level").textContent = "Lv." + level;
       $("char-join").textContent = profile.joinDate;
@@ -547,9 +573,11 @@
 
     $("mission-btn").onclick = async () => {
       const ref = doc(db, "users", user.uid, "missions", selected);
+      const wasDone = missions.has(selected);
       try {
-        if (missions.has(selected)) await deleteDoc(ref);
+        if (wasDone) await deleteDoc(ref);
         else await setDoc(ref, { date: selected, createdAt: serverTimestamp() });
+        setMood(wasDone ? "sad" : "happy");   // 취소 → 슬픔 5초 / 완료 → 기쁨 5초
       } catch (e) { console.error(e); alert("저장에 실패했습니다."); }
     };
 
@@ -737,7 +765,7 @@
             if (!p) return `<div class="list-item"><span style="color:#888">불러오는 중...</span></div>`;
             const cnt = monthCount(fd.missions, ym);
             return `<div class="list-item">
-              <span class="mini-cat ${esc(p.catColor)}">🐱</span>
+              <span class="mini-cat"><img src="${esc(catImg(p.catColor, levelFor(cnt), null))}" alt=""></span>
               <span style="flex:1"><b>${esc(p.name)}</b> · Lv.${levelFor(cnt)}<br>
                 <span style="color:#888;font-size:12px">이번 달 연습 ${cnt}회</span></span>
               <button type="button" class="small" data-view="${uid}">🏠 놀러가기</button>
@@ -837,9 +865,8 @@
       const fd = friendData.get(viewing); const p = fd?.profile; if (!p) return;
       const cnt = monthCount(fd.missions, todayStr().slice(0, 7));
       const level = levelFor(cnt);
-      const img = CAT_IMAGES[p.catColor]?.[level];
-      $("fd-cat").className = "cat " + p.catColor;
-      $("fd-cat").innerHTML = img ? `<img src="${esc(img)}" alt="">` : "🐱";
+      $("fd-cat").className = "cat";
+      $("fd-cat").innerHTML = `<img src="${esc(catImg(p.catColor, level, null))}" alt="${esc(p.name)}">`;
       $("fd-name").textContent = p.name;
       $("fd-level").textContent = "Lv." + level;
       $("fd-join").textContent = p.joinDate;
@@ -898,6 +925,7 @@
         await Promise.all([...ms.docs, ...ss.docs, ...fs.docs].map(d => deleteDoc(d.ref)));
         await deleteDoc(doc(db, "users", uid));
         profile = null; missions = new Set(); songs = [];
+        clearMood();
         endSongEdit();
         $("cat-name").value = ""; $("join-date").value = todayStr();
         show("create-view");
