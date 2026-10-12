@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>호우주의보 연습장</title>
+  <style>
+    /* 디자인은 나중에 교체 예정 - 지금은 기능 확인용 최소 스타일 */
+    body { font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 12px; }
+    section { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+    h3 { margin: 0 0 8px; }
+    button { cursor: pointer; }
+    .hidden { display: none; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .small { font-size: 12px; }
+
+    /* 캐릭터 */
+    .char { display: flex; align-items: center; gap: 12px; }
+    .cat { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center;
+           justify-content: center; font-size: 48px; flex-shrink: 0; overflow: hidden; }
+    .cat img { width: 100%; height: 100%; object-fit: contain; }
+    .cat.yellow { background: #ffe08a; } .cat.gray { background: #cfcfcf; } .cat.black { background: #666; }
+
+    /* 주간 / 월간 칸 */
+    .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cell { min-height: 72px; border: 1px solid #ccc; border-radius: 6px; background: #fff;
+            padding: 4px 2px; font-size: 12px; text-align: center; }
+    .cell .dow { color: #888; font-size: 11px; }
+    .cell .num { font-weight: bold; font-size: 14px; }
+    .cell .band { color: #d9480f; font-size: 10px; font-weight: bold; word-break: keep-all; line-height: 1.2; }
+    .cell .stamp { font-size: 18px; }
+    .cell.today { border-color: #228be6; }
+    .cell.selected { background: #e7f5ff; }
+    .cell.blank { border: none; background: none; cursor: default; }
+    .dowhead { text-align: center; font-size: 11px; color: #888; }
+
+    /* 팝업창 */
+    dialog { border: 1px solid #ccc; border-radius: 12px; padding: 16px; width: min(92vw, 420px); }
+    dialog::backdrop { background: rgba(0, 0, 0, .35); }
+    dialog input[type="text"], dialog input[type="date"] { width: 100%; box-sizing: border-box; margin: 4px 0 10px; padding: 6px; }
+    dialog .actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; }
+    dialog label.opt { margin-right: 8px; }
+    .list-item { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+                 padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+    .linkbtn { border: none; background: none; text-align: left; padding: 0; font-size: 14px; flex: 1; }
+
+    /* 일일 미션 버튼: 안 했을 때 노랑, 완료하면 회색 */
+    .mission-btn { width: 80%; padding: 16px 0; font-size: 20px; font-weight: bold; border: none;
+                   border-radius: 14px; margin: 10px 0; }
+    .mission-btn.todo { background: #ffd43b; color: #333; }
+    .mission-btn.done { background: #adb5bd; color: #fff; }
+    .mission-btn:disabled { opacity: .5; cursor: default; }
+
+    /* 연습한 곡 입력 줄 */
+    .song-form { display: flex; flex-wrap: wrap; gap: 6px; }
+    .song-form input { padding: 6px; min-width: 0; }
+
+    /* 친구 / 콕 찌르기 */
+    #poke-banner { background: #fff3bf; border: 1px solid #ffd43b; border-radius: 10px;
+                   padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+    #poke-banner .row { padding: 2px 0; }
+    .mini-cat { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center;
+                justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .mini-cat.yellow { background: #ffe08a; } .mini-cat.gray { background: #cfcfcf; } .mini-cat.black { background: #666; }
+    dialog { max-height: 88vh; overflow-y: auto; }
+    #fd-cal .cell { min-height: 60px; }
+    .poke-btn { border: none; background: #fff3bf; border-radius: 50%; width: 58px; height: 58px;
+                font-size: 13px; line-height: 1.25; flex-shrink: 0; }
+    .poke-btn:disabled { background: #e9ecef; color: #868e96; cursor: default; }
+
+    /* 고양이 말풍선 (캐릭터 위, 꼬리가 고양이를 가리킴) */
+    .bubble { position: relative; display: inline-block; background: #fff9db; border: 1px solid #ffd43b;
+              border-radius: 12px; padding: 6px 14px; margin: 0 0 14px 4px; font-size: 13px; }
+    .bubble::after { content: ""; position: absolute; left: 40px; bottom: -7px; width: 12px; height: 12px;
+                     background: #fff9db; border-right: 1px solid #ffd43b; border-bottom: 1px solid #ffd43b;
+                     transform: rotate(45deg); }
+
+    /* 일일 미션 옆 작은 물음표 */
+    .help-btn { width: 18px; height: 18px; padding: 0; border: 1px solid #bbb; border-radius: 50%;
+                background: none; color: #888; font-size: 11px; line-height: 1; vertical-align: middle; }
+  </style>
+</head>
+<body>
+
+  <!-- 1. 로그인 화면 -->
+  <section id="login-view" class="hidden">
+    <h2>밴드 연습 다이어리</h2>
+    <button id="login-btn">구글 로그인하기</button>
+  </section>
+
+  <!-- 2. 캐릭터 만들기 화면 (처음 로그인했을 때만) -->
+  <section id="create-view" class="hidden">
+    <h3>캐릭터 만들기</h3>
+    <p>고양이 종류</p>
+    <label><input type="radio" name="cat-color" value="yellow" checked> 노랑</label>
+    <label><input type="radio" name="cat-color" value="gray"> 회색</label>
+    <label><input type="radio" name="cat-color" value="black"> 검은색</label>
+    <p>이름</p>
+    <input type="text" id="cat-name" maxlength="12" placeholder="캐릭터 이름">
+    <p>밴드 가입일</p>
+    <input type="date" id="join-date">
+    <p><button id="create-btn">시작하기</button></p>
+  </section>
+
+  <!-- 3. 메인 화면 -->
+  <div id="app-view" class="hidden">
+
+    <!-- 콕 찌르기 알림 (오늘 받은 콕이 있을 때만 보임) -->
+    <div id="poke-banner" class="hidden"></div>
+
+    <!-- 다가오는 밴드 연습 (가장 위 공지 영역) -->
+    <section>
+      <div class="row">
+        <h3 style="margin:0">📢 다가오는 밴드 연습</h3>
+        <button id="admin-open" class="hidden small">🛠 일정 관리</button>
+      </div>
+      <div id="upcoming" style="font-size:14px;margin-top:8px"></div>
+    </section>
+
+    <!-- 친구 (누르면 친구 목록 팝업) -->
+    <section style="padding:4px 12px">
+      <button id="friends-open" class="row" style="width:100%;padding:6px 0;font-size:13px;border:none;background:none">
+        <span style="color:#666">나의 친구</span>
+        <b>호우주의보 (<span id="friend-count">1</span>명)</b>
+      </button>
+    </section>
+
+    <!-- 고양이 말풍선 (레벨에 따라 문구가 바뀜) -->
+    <div id="cat-bubble" class="bubble"></div>
+
+    <!-- 캐릭터 영역 -->
+    <section class="char">
+      <div id="cat" class="cat"></div>
+      <div style="flex:1">
+        <div><b id="char-name"></b> · <span id="char-level"></span></div>
+        <div style="font-size:13px;color:#666">밴드 가입일: <span id="char-join"></span></div>
+        <div style="font-size:13px;color:#666">이번 달 연습 <span id="char-count">0</span>회</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <button id="profile-open" class="small">✏️ 수정</button>
+        <button id="logout-btn" class="small">로그아웃</button>
+      </div>
+    </section>
+
+    <!-- 날짜 이동 + 일일 미션 -->
+    <section>
+      <div class="row">
+        <button id="prev-day">◀</button>
+        <b id="date-label"></b>
+        <button id="next-day">▶</button>
+      </div>
+      <div style="text-align:center">
+        <h3 style="margin-top:12px">일일 미션 <button id="help-open" class="help-btn" title="일일 미션 설명">?</button></h3>
+        <button id="mission-btn" class="mission-btn todo"></button>
+        <div style="font-size:13px;color:#666">- 개인 연습에 성공했다</div>
+        <div style="font-size:13px;color:#666">- 밴드합주에 성공했다</div>
+      </div>
+    </section>
+
+    <!-- 주간 일정 -->
+    <section>
+      <div class="row">
+        <h3 style="margin:0">주간 일정</h3>
+        <button id="cal-toggle">📅 달력 보기</button>
+      </div>
+      <div id="week" class="week" style="margin-top:8px"></div>
+      <div id="band-info" style="font-size:13px;margin-top:10px"></div>
+    </section>
+
+    <!-- 월간 달력 -->
+    <section id="month-section" class="hidden">
+      <div class="row">
+        <button id="prev-month">◀</button>
+        <b id="month-label"></b>
+        <button id="next-month">▶</button>
+      </div>
+      <div id="month" class="week" style="margin-top:8px"></div>
+    </section>
+
+    <!-- 맨 아래: 연습한 곡 목록 (팝업 없이 바로 나열) -->
+    <section style="margin-bottom:24px">
+      <h3>📜 연습한 곡 (<span id="song-count">0</span>)</h3>
+      <div class="song-form">
+        <input type="text" id="song-title" maxlength="40" placeholder="곡 제목" style="flex:1 1 100%">
+        <input type="text" id="song-artist" maxlength="30" placeholder="가수 (선택)" style="flex:1">
+        <input type="text" id="song-instrument" maxlength="20" placeholder="악기 (선택)" list="instrument-list" style="flex:1">
+        <datalist id="instrument-list">
+          <option value="보컬"><option value="기타"><option value="베이스">
+          <option value="드럼"><option value="키보드">
+        </datalist>
+        <button id="song-add">추가</button>
+        <button id="song-cancel" class="hidden">취소</button>
+      </div>
+      <div id="song-list" style="margin-top:8px"></div>
+    </section>
+
+    <!-- 맨 아래 가운데: 캐릭터 삭제하기 -->
+    <div style="text-align:center;margin:8px 0 40px">
+      <button id="delete-account" style="border:none;background:none;color:#c92a2a;text-decoration:underline;font-size:13px">
+        내 캐릭터 삭제하기
+      </button>
+      <div style="font-size:11px;color:#999;margin-top:2px">삭제 후 새 캐릭터로 다시 시작할 수 있어요</div>
+    </div>
+  </div>
+
+  <!-- 팝업: 일일 미션 설명 -->
+  <dialog id="help-dialog">
+    <h3>일일 미션</h3>
+    <div style="font-size:14px">다음과 같은 활동을 통해 경험치를 얻을 수 있습니다.</div>
+    <div style="font-size:14px;margin:6px 0 12px">- 개인 연습에 성공했다<br>- 밴드 합주에 성공했다</div>
+    <h4 style="margin:12px 0 4px">레벨업</h4>
+    <div style="font-size:14px;line-height:1.7">
+      이번 달 일일 미션을 완료한 횟수만큼 레벨이 올라가요.<br>
+      1회 Lv.1 · 2회 Lv.2 · 3회 Lv.3 · 4회 Lv.4 · 5회 이상 Lv.5<br>
+      레벨은 매달 1일에 초기화되고, 레벨이 오르면 고양이가 업그레이드돼요.
+    </div>
+    <div style="text-align:center;font-weight:bold;margin:18px 0 4px">모두 함께 연습합시다 호우~!</div>
+    <div class="actions" style="justify-content:center">
+      <button type="button" data-close>닫기</button>
+    </div>
+  </dialog>
+
+  <!-- 팝업: 프로필 수정 -->
+  <dialog id="profile-dialog">
+    <h3>내 캐릭터 수정</h3>
+    <div>고양이 종류</div>
+    <div style="margin:4px 0 10px">
+      <label class="opt"><input type="radio" name="edit-cat-color" value="yellow"> 노랑</label>
+      <label class="opt"><input type="radio" name="edit-cat-color" value="gray"> 회색</label>
+      <label class="opt"><input type="radio" name="edit-cat-color" value="black"> 검은색</label>
+    </div>
+    <div>이름</div>
+    <input type="text" id="edit-name" maxlength="12">
+    <div>밴드 가입일</div>
+    <input type="date" id="edit-join">
+    <div class="actions">
+      <button type="button" data-close>취소</button>
+      <button type="button" id="profile-save">저장</button>
+    </div>
+  </dialog>
+
+  <!-- 팝업: 밴드 연습 일정 관리 (호스트 전용) -->
+  <dialog id="admin-dialog">
+    <h3>밴드 연습 일정 관리</h3>
+    <div>날짜</div>
+    <input type="date" id="admin-date">
+    <div>메모 (선택)</div>
+    <input type="text" id="admin-note" placeholder="예: 19시 합주실">
+    <div class="actions" style="justify-content:flex-start">
+      <button type="button" id="admin-save"></button>
+      <button type="button" id="admin-delete" class="hidden">삭제</button>
+    </div>
+    <hr>
+    <div style="font-size:13px;color:#666;margin-bottom:4px">등록된 일정 (누르면 불러와요)</div>
+    <div id="admin-list"></div>
+    <div class="actions">
+      <button type="button" data-close>닫기</button>
+    </div>
+  </dialog>
+
+  <!-- 팝업: 친구 목록 -->
+  <dialog id="friends-dialog">
+    <div class="row">
+      <h3 style="margin:0">호우주의보</h3>
+      <button id="invite-btn" class="small">📨 친구 초대</button>
+    </div>
+    <div id="friend-list" style="margin-top:8px"></div>
+    <div class="actions">
+      <button type="button" data-close>닫기</button>
+    </div>
+  </dialog>
+
+  <!-- 친구 집 (놀러가기: 보기만 가능) -->
+  <div id="visit-view" class="hidden">
+    <div style="margin-bottom:8px"><button id="home-btn">🏠 홈</button></div>
+
+    <section class="char">
+      <div id="fd-cat" class="cat"></div>
+      <div style="flex:1">
+        <div><b id="fd-name"></b> · <span id="fd-level"></span></div>
+        <div style="font-size:13px;color:#666">밴드 가입일: <span id="fd-join"></span></div>
+        <div style="font-size:13px;color:#666">이번 달 연습 <span id="fd-count">0</span>회</div>
+      </div>
+      <!-- 콕 찌르기: 고양이 옆 (UI는 나중에 교체) -->
+      <button id="fd-poke" class="poke-btn"></button>
+    </section>
+
+    <section>
+      <div class="row">
+        <button type="button" id="fd-prev">◀</button>
+        <b id="fd-month-label"></b>
+        <button type="button" id="fd-next">▶</button>
+      </div>
+      <div id="fd-cal" class="week" style="margin-top:8px"></div>
+    </section>
+
+    <section>
+      <h3>📜 연습한 곡</h3>
+      <div id="fd-songs"></div>
+    </section>
+
+    <div style="text-align:center;margin:8px 0 40px">
+      <button id="fd-unfriend" class="small">친구 삭제</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+      from "https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+    import { getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, onSnapshot, query, where, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBDmeblfO1ZPsuag2BCHgsvnGXEFinKazg",
+      authDomain: "houuuuu-a1d21.firebaseapp.com",
+      projectId: "houuuuu-a1d21",
+      storageBucket: "houuuuu-a1d21.firebasestorage.app",
+      messagingSenderId: "1015456655528",
+      appId: "1:1015456655528:web:bd3b3236a5d6085d7b7a9d"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    // ===== 설정 (나중에 여기만 고치면 됨) =====
+
+    // 호스트(밴드 일정을 올릴 수 있는 사람)의 구글 이메일. 여러 명이면 쉼표로 추가
+    // ※ Firestore 보안 규칙에도 같은 이메일을 넣어야 실제로 막힙니다.
+    const HOST_EMAILS = ["alal3894@gmail.com"];
+
+    // 레벨 규칙: 이번 달 일일 미션 완료 횟수 → 레벨 (매달 초기화)
+    // 1회=Lv.1, 2회=Lv.2, 3회=Lv.3, 4회=Lv.4, 5회 이상=Lv.5 (0회는 Lv.1로 표시)
+    function levelFor(count) {
+      return Math.min(Math.max(count, 1), 5);
+    }
+
+    // 고양이 이미지: 디자인이 나오면 경로를 채우면 됨. 비어 있으면 이모지로 표시
+    // 예) CAT_IMAGES.yellow[3] = "images/yellow_lv3.png"
+    const CAT_IMAGES = { yellow: {}, gray: {}, black: {} };
+
+    // 고양이 말풍선 문구 (레벨별) - 원하는 문구로 바꿔도 됨
+    const CAT_SAYINGS = {
+      1: "분발해라냥",
+      2: "잘하고 있다냥",
+      3: "대단하다냥",
+      4: "고수가 나타났다냥",
+      5: "무대위로 가라냥"
+    };
+    // ==========================================
+
+    const $ = id => document.getElementById(id);
+    const DOW = ["월", "화", "수", "목", "금", "토", "일"];
+
+    // 날짜 도구 (브라우저 현지 시간 기준, 'YYYY-MM-DD' 문자열)
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+    const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return fmt(d); };
+    const todayStr = () => fmt(new Date());
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const dowOf = s => DOW[(parse(s).getDay() + 6) % 7];
+
+    // 상태
+    let user = null;
+    let profile = null;
+    let selected = todayStr();
+    let missions = new Set();   // 내가 일일 미션을 완료한 날짜들
+    let band = new Map();       // 밴드 연습 날짜 → { note }
+    let songs = [];             // 내가 연습한 곡들
+    let monthCursor = { y: 0, m: 0 };
+    let unsubs = [];
+    let editingSongId = null;   // 수정 중인 곡 (없으면 null)
+
+    // 초대 링크(?invite=...)로 들어왔다면 기억해 둠 (로그인/캐릭터 생성 후 처리)
+    const inviteFromUrl = new URLSearchParams(location.search).get("invite");
+    if (inviteFromUrl) { try { localStorage.setItem("pendingInvite", inviteFromUrl); } catch {} }
+
+    function show(view) {
+      for (const id of ["login-view", "create-view", "app-view", "visit-view"]) $(id).classList.toggle("hidden", id !== view);
+    }
+
+    // 팝업 공통: [data-close] 버튼은 자기 팝업을 닫음
+    document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
+
+    // ===== 로그인 / 계정 =====
+    $("login-btn").onclick = async () => {
+      try { await signInWithPopup(auth, provider); }
+      catch (e) {
+        console.error("로그인 에러:", e);
+        alert("로그인에 실패했습니다.\n에러 코드: " + (e.code || e.message));
+      }
+    };
+    $("logout-btn").onclick = () => signOut(auth);
+
+    onAuthStateChanged(auth, async (u) => {
+      unsubs.forEach(f => f()); unsubs = [];
+      user = u; profile = null;
+      if (!u) { show("login-view"); return; }
+      try {
+        const snap = await getDoc(doc(db, "users", u.uid));
+        if (snap.exists()) { profile = snap.data(); startApp(); }
+        else {
+          $("join-date").value = todayStr();
+          $("cat-name").value = "";
+          show("create-view");
+        }
+      } catch (e) {
+        console.error(e);
+        alert("정보를 불러오지 못했습니다. Firestore 설정과 보안 규칙을 확인해주세요.");
+      }
+    });
+
+    // ===== 캐릭터 생성 =====
+    $("create-btn").onclick = async () => {
+      const name = $("cat-name").value.trim();
+      const joinDate = $("join-date").value;
+      const color = document.querySelector('input[name="cat-color"]:checked').value;
+      if (!name || !joinDate) { alert("이름과 밴드 가입일을 입력해주세요."); return; }
+      try {
+        profile = { name, catColor: color, joinDate, createdAt: serverTimestamp() };
+        await setDoc(doc(db, "users", user.uid), profile);
+        startApp();
+      } catch (e) { console.error(e); alert("저장에 실패했습니다."); }
+    };
+
+    // ===== 메인 시작 =====
+    function startApp() {
+      selected = todayStr();
+      const t = new Date(); monthCursor = { y: t.getFullYear(), m: t.getMonth() };
+      show("app-view");
+      startFriends();
+      unsubs.push(onSnapshot(collection(db, "users", user.uid, "missions"), snap => {
+        missions = new Set(snap.docs.map(d => d.id)); render();
+      }, e => console.error(e)));
+      unsubs.push(onSnapshot(collection(db, "bandSchedule"), snap => {
+        band = new Map(snap.docs.map(d => [d.id, d.data()])); render();
+      }, e => console.error(e)));
+      unsubs.push(onSnapshot(collection(db, "users", user.uid, "songs"), snap => {
+        const ms = s => s.createdAt?.toMillis?.() ?? Date.now(); // 저장 중인 곡은 맨 위
+        songs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => ms(b) - ms(a));
+        render();
+      }, e => console.error(e)));
+      render();
+    }
+
+    // ===== 그리기 =====
+    function render() {
+      if (!profile) return;
+
+      // 캐릭터
+      const thisMonth = todayStr().slice(0, 7); // 'YYYY-MM'
+      const count = [...missions].filter(d => d.startsWith(thisMonth)).length;
+      const level = levelFor(count);
+      const isHost = HOST_EMAILS.includes(user.email);
+      const img = CAT_IMAGES[profile.catColor]?.[level];
+      $("cat").className = "cat " + profile.catColor;
+      $("cat").innerHTML = img ? `<img src="${esc(img)}" alt="">` : "🐱";
+      $("char-name").textContent = profile.name;
+      $("char-level").textContent = "Lv." + level;
+      $("char-join").textContent = profile.joinDate;
+      $("char-count").textContent = count;
+      $("cat-bubble").textContent = CAT_SAYINGS[level];
+
+      // 날짜 / 일일 미션
+      const sd = parse(selected);
+      $("date-label").textContent = `${sd.getFullYear()}년 ${sd.getMonth() + 1}월 ${sd.getDate()}일 (${dowOf(selected)})`
+        + (selected === todayStr() ? " · 오늘" : "");
+      const done = missions.has(selected);
+      const future = selected > todayStr();
+      $("mission-btn").textContent = done ? "일일미션 완료" : "일일미션 하기";
+      $("mission-btn").className = "mission-btn " + (done ? "done" : "todo");
+      $("mission-btn").disabled = future;
+
+      // 주간
+      const mondayOffset = (sd.getDay() + 6) % 7;
+      const monday = addDays(selected, -mondayOffset);
+      $("week").innerHTML = "";
+      for (let i = 0; i < 7; i++) $("week").appendChild(makeCell(addDays(monday, i), DOW[i]));
+
+      // 선택한 날의 밴드 연습 안내
+      const b = band.get(selected);
+      $("band-info").innerHTML = b
+        ? `🎸 <b>밴드 연습</b>${b.note ? " · " + esc(b.note) : ""}`
+        : `<span style="color:#888">이 날은 밴드 연습이 없어요.</span>`;
+
+      // 다가오는 밴드 연습 (오늘 이후 3개)
+      const upcoming = [...band.keys()].filter(d => d >= todayStr()).sort().slice(0, 3);
+      $("upcoming").innerHTML = upcoming.length
+        ? upcoming.map(d => {
+            const dd = parse(d);
+            return `<div>${dd.getMonth() + 1}/${dd.getDate()} (${dowOf(d)})${band.get(d).note ? " · " + esc(band.get(d).note) : ""}</div>`;
+          }).join("")
+        : `<span style="color:#888">예정된 밴드 연습이 없어요.</span>`;
+
+      // 호스트에게만 '일정 관리' 버튼 표시
+      $("admin-open").classList.toggle("hidden", !isHost);
+      renderAdminList();
+      updateAdminButtons();
+
+      // 곡 목록
+      $("song-count").textContent = songs.length;
+      renderSongs();
+
+      // 친구 / 콕 알림
+      renderFriends();
+      renderPokeBanner();
+      renderFriendDialog();
+
+      // 월간
+      renderMonth();
+    }
+
+    function makeCell(dateStr, dowLabel) {
+      const el = document.createElement("button");
+      el.className = "cell"
+        + (dateStr === todayStr() ? " today" : "")
+        + (dateStr === selected ? " selected" : "");
+      const b = band.get(dateStr);
+      el.innerHTML =
+        (dowLabel ? `<div class="dow">${dowLabel}</div>` : "")
+        + `<div class="num">${parse(dateStr).getDate()}</div>`
+        + (b ? `<div class="band">밴드 연습</div>` : "")
+        + (missions.has(dateStr) ? `<div class="stamp">🐾</div>` : "");
+      el.onclick = () => { selected = dateStr; render(); };
+      return el;
+    }
+
+    function renderMonth() {
+      if ($("month-section").classList.contains("hidden")) return;
+      const { y, m } = monthCursor;
+      $("month-label").textContent = `${y}년 ${m + 1}월`;
+      const box = $("month"); box.innerHTML = "";
+      DOW.forEach(d => { const h = document.createElement("div"); h.className = "dowhead"; h.textContent = d; box.appendChild(h); });
+      const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+      for (let i = 0; i < lead; i++) { const e = document.createElement("div"); e.className = "cell blank"; box.appendChild(e); }
+      const last = new Date(y, m + 1, 0).getDate();
+      for (let d = 1; d <= last; d++) box.appendChild(makeCell(fmt(new Date(y, m, d)), ""));
+    }
+
+    // ===== 일일 미션 / 날짜 이동 =====
+    $("prev-day").onclick = () => { selected = addDays(selected, -1); render(); };
+    $("next-day").onclick = () => { selected = addDays(selected, 1); render(); };
+
+    $("mission-btn").onclick = async () => {
+      const ref = doc(db, "users", user.uid, "missions", selected);
+      try {
+        if (missions.has(selected)) await deleteDoc(ref);
+        else await setDoc(ref, { date: selected, createdAt: serverTimestamp() });
+      } catch (e) { console.error(e); alert("저장에 실패했습니다."); }
+    };
+
+    // ===== 일일 미션 설명 팝업 =====
+    $("help-open").onclick = () => $("help-dialog").showModal();
+
+    // ===== 달력 보기 / 닫기 =====
+    $("cal-toggle").onclick = () => {
+      const sec = $("month-section");
+      const opening = sec.classList.contains("hidden");
+      sec.classList.toggle("hidden", !opening);
+      $("cal-toggle").textContent = opening ? "📅 달력 닫기" : "📅 달력 보기";
+      if (opening) { const d = parse(selected); monthCursor = { y: d.getFullYear(), m: d.getMonth() }; }
+      renderMonth();
+    };
+    $("prev-month").onclick = () => { const d = new Date(monthCursor.y, monthCursor.m - 1, 1); monthCursor = { y: d.getFullYear(), m: d.getMonth() }; renderMonth(); };
+    $("next-month").onclick = () => { const d = new Date(monthCursor.y, monthCursor.m + 1, 1); monthCursor = { y: d.getFullYear(), m: d.getMonth() }; renderMonth(); };
+
+    // ===== 프로필 수정 팝업 =====
+    $("profile-open").onclick = () => {
+      $("edit-name").value = profile.name;
+      $("edit-join").value = profile.joinDate;
+      document.querySelector(`input[name="edit-cat-color"][value="${profile.catColor}"]`).checked = true;
+      $("profile-dialog").showModal();
+    };
+    $("profile-save").onclick = async () => {
+      const name = $("edit-name").value.trim();
+      const joinDate = $("edit-join").value;
+      const catColor = document.querySelector('input[name="edit-cat-color"]:checked').value;
+      if (!name || !joinDate) { alert("이름과 밴드 가입일을 입력해주세요."); return; }
+      try {
+        await setDoc(doc(db, "users", user.uid), { name, joinDate, catColor }, { merge: true });
+        profile = { ...profile, name, joinDate, catColor };
+        render();
+        $("profile-dialog").close();
+      } catch (e) { console.error(e); alert("저장에 실패했습니다."); }
+    };
+
+    // ===== 밴드 연습 일정 관리 팝업 (호스트) =====
+    $("admin-open").onclick = () => {
+      $("admin-date").value = selected;
+      $("admin-note").value = band.get(selected)?.note || "";
+      updateAdminButtons();
+      $("admin-dialog").showModal();
+    };
+    $("admin-date").onchange = () => {
+      $("admin-note").value = band.get($("admin-date").value)?.note || "";
+      updateAdminButtons();
+    };
+    function updateAdminButtons() {
+      const exists = band.has($("admin-date").value);
+      $("admin-save").textContent = exists ? "수정" : "밴드 연습 지정";
+      $("admin-delete").classList.toggle("hidden", !exists);
+    }
+    function renderAdminList() {
+      const days = [...band.keys()].filter(d => d >= todayStr()).sort();
+      $("admin-list").innerHTML = days.length
+        ? days.map(d => `<div class="list-item"><button type="button" class="linkbtn" data-date="${d}">
+            ${parse(d).getMonth() + 1}/${parse(d).getDate()} (${dowOf(d)})${band.get(d).note ? " · " + esc(band.get(d).note) : ""}</button></div>`).join("")
+        : `<span style="color:#888;font-size:14px">등록된 일정이 없어요.</span>`;
+    }
+    $("admin-list").onclick = (e) => {
+      const btn = e.target.closest("[data-date]"); if (!btn) return;
+      $("admin-date").value = btn.dataset.date;
+      $("admin-note").value = band.get(btn.dataset.date)?.note || "";
+      updateAdminButtons();
+    };
+    $("admin-save").onclick = async () => {
+      const date = $("admin-date").value;
+      if (!date) { alert("날짜를 선택해주세요."); return; }
+      try {
+        await setDoc(doc(db, "bandSchedule", date), {
+          date,
+          note: $("admin-note").value.trim(),
+          updatedBy: profile.name,
+          updatedAt: serverTimestamp()
+        });
+      } catch (e) { console.error(e); alert("저장에 실패했습니다. 호스트 권한과 보안 규칙을 확인해주세요."); }
+    };
+    $("admin-delete").onclick = async () => {
+      const date = $("admin-date").value;
+      if (!confirm(`${date} 밴드 연습을 삭제할까요?`)) return;
+      try { await deleteDoc(doc(db, "bandSchedule", date)); $("admin-note").value = ""; }
+      catch (e) { console.error(e); alert("삭제에 실패했습니다."); }
+    };
+
+    // ===== 연습한 곡 =====
+    function renderSongs() {
+      $("song-list").innerHTML = songs.length
+        ? songs.map(s => `<div class="list-item"><span>🎵 <b>${esc(s.title)}</b>${s.artist ? ` <span style="color:#888">/ ${esc(s.artist)}</span>` : ""}${s.instrument ? ` <span style="color:#d9480f">/ ${esc(s.instrument)}</span>` : ""}</span>
+            <span style="white-space:nowrap"><button type="button" class="small" data-edit="${s.id}">수정</button>
+            <button type="button" class="small" data-del="${s.id}">삭제</button></span></div>`).join("")
+        : `<span style="color:#888;font-size:14px">아직 추가한 곡이 없어요.</span>`;
+    }
+    $("song-add").onclick = async () => {
+      const title = $("song-title").value.trim();
+      const artist = $("song-artist").value.trim();
+      const instrument = $("song-instrument").value.trim();
+      if (!title) { alert("곡 제목을 입력해주세요."); return; }
+      try {
+        if (editingSongId) {
+          await setDoc(doc(db, "users", user.uid, "songs", editingSongId), { title, artist, instrument }, { merge: true });
+          endSongEdit();
+        } else {
+          await addDoc(collection(db, "users", user.uid, "songs"), { title, artist, instrument, createdAt: serverTimestamp() });
+          $("song-title").value = ""; $("song-artist").value = ""; $("song-instrument").value = "";
+        }
+      } catch (e) { console.error(e); alert("추가에 실패했습니다. 보안 규칙에 songs 항목이 있는지 확인해주세요."); }
+    };
+    $("song-list").onclick = async (e) => {
+      const ed = e.target.closest("[data-edit]");
+      if (ed) { startSongEdit(ed.dataset.edit); return; }
+      const btn = e.target.closest("[data-del]"); if (!btn) return;
+      if (!confirm("이 곡을 목록에서 삭제할까요?")) return;
+      try { await deleteDoc(doc(db, "users", user.uid, "songs", btn.dataset.del)); }
+      catch (err) { console.error(err); alert("삭제에 실패했습니다."); }
+    };
+
+    // ===== 곡 수정 =====
+    function startSongEdit(id) {
+      const s = songs.find(x => x.id === id); if (!s) return;
+      editingSongId = id;
+      $("song-title").value = s.title || "";
+      $("song-artist").value = s.artist || "";
+      $("song-instrument").value = s.instrument || "";
+      $("song-add").textContent = "수정 저장";
+      $("song-cancel").classList.remove("hidden");
+      $("song-title").focus();
+      $("song-title").scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    function endSongEdit() {
+      editingSongId = null;
+      $("song-title").value = ""; $("song-artist").value = ""; $("song-instrument").value = "";
+      $("song-add").textContent = "추가";
+      $("song-cancel").classList.add("hidden");
+    }
+    $("song-cancel").onclick = endSongEdit;
+
+    // ===== 친구 =====
+    let friendUids = [];                // 내 친구 uid 목록
+    const friendWatch = new Map();      // 친구 uid → 구독 해제 함수
+    const friendData = new Map();       // 친구 uid → { profile, missions }
+    let pokedToday = new Set();         // 오늘 내가 콕 찌른 친구들
+    let pokesIn = [];                   // 오늘 나에게 온 콕
+    let viewing = null;                 // 구경 중인 친구 uid
+    let viewingSongs = null;            // 구경 중인 친구의 곡 목록
+    let friendCursor = { y: 0, m: 0 };  // 친구 달력의 월
+
+    const pairId = (a, b) => [a, b].sort().join("_");
+    const monthCount = (set, ym) => [...set].filter(d => d.startsWith(ym)).length;
+
+    function startFriends() {
+      const today = todayStr();
+      // 내 친구 관계
+      unsubs.push(onSnapshot(query(collection(db, "friendships"), where("members", "array-contains", user.uid)), snap => {
+        friendUids = snap.docs.map(d => d.data().members.find(m => m !== user.uid)).filter(Boolean);
+        friendUids.forEach(watchFriend);
+        [...friendWatch.keys()].filter(u => !friendUids.includes(u)).forEach(u => {
+          friendWatch.get(u)(); friendWatch.delete(u); friendData.delete(u);
+        });
+        if (viewing && !friendUids.includes(viewing)) goHome();
+        render();
+      }, e => console.error(e)));
+      // 오늘 내가 보낸 콕
+      unsubs.push(onSnapshot(query(collection(db, "pokes"), where("from", "==", user.uid), where("date", "==", today)), snap => {
+        pokedToday = new Set(snap.docs.map(d => d.data().to)); render();
+      }, e => console.error(e)));
+      // 오늘 나에게 온 콕
+      unsubs.push(onSnapshot(query(collection(db, "pokes"), where("to", "==", user.uid), where("date", "==", today)), snap => {
+        pokesIn = snap.docs.map(d => ({ id: d.id, ...d.data() })); render();
+      }, e => console.error(e)));
+      // 로그아웃 때 친구 구독 정리
+      unsubs.push(() => {
+        friendWatch.forEach(f => f()); friendWatch.clear(); friendData.clear();
+        friendUids = []; pokedToday = new Set(); pokesIn = []; viewing = null;
+      });
+      handleInvite();
+    }
+
+    function watchFriend(uid) {
+      if (friendWatch.has(uid)) return;
+      const fd = { profile: null, missions: new Set() };
+      friendData.set(uid, fd);
+      const u1 = onSnapshot(doc(db, "users", uid), s => {
+        fd.profile = s.exists() ? s.data() : null; render(); renderFriendDialog();
+      }, e => console.error(e));
+      const u2 = onSnapshot(collection(db, "users", uid, "missions"), s => {
+        fd.missions = new Set(s.docs.map(x => x.id)); render(); renderFriendDialog();
+      }, e => console.error(e));
+      friendWatch.set(uid, () => { u1(); u2(); });
+    }
+
+    function renderFriends() {
+      $("friend-count").textContent = friendUids.length + 1; // 나 포함
+      const ym = todayStr().slice(0, 7);
+      $("friend-list").innerHTML = friendUids.length
+        ? friendUids.map(uid => {
+            const fd = friendData.get(uid); const p = fd?.profile;
+            if (!p) return `<div class="list-item"><span style="color:#888">불러오는 중...</span></div>`;
+            const cnt = monthCount(fd.missions, ym);
+            return `<div class="list-item">
+              <span class="mini-cat ${esc(p.catColor)}">🐱</span>
+              <span style="flex:1"><b>${esc(p.name)}</b> · Lv.${levelFor(cnt)}<br>
+                <span style="color:#888;font-size:12px">이번 달 연습 ${cnt}회</span></span>
+              <button type="button" class="small" data-view="${uid}">🏠 놀러가기</button>
+            </div>`;
+          }).join("")
+        : `<span style="color:#888;font-size:14px">아직 친구가 없어요. 초대 링크를 보내보세요!</span>`;
+    }
+    $("friends-open").onclick = () => $("friends-dialog").showModal();
+    $("friend-list").onclick = (e) => {
+      const v = e.target.closest("[data-view]"); if (v) openFriend(v.dataset.view);
+    };
+
+    // --- 친구 초대 ---
+    $("invite-btn").onclick = async () => {
+      const url = `${location.origin}${location.pathname}?invite=${user.uid}`;
+      const text = `${profile.name}님이 호우주의보 연습장에 초대했어요! 친구가 되어 같이 연습해요 🎸`;
+      if (navigator.share) { // 폰에서는 카카오톡 등 공유창이 뜸
+        try { await navigator.share({ title: "호우주의보 연습장 초대", text, url }); return; }
+        catch (e) { if (e.name === "AbortError") return; }
+      }
+      try { await navigator.clipboard.writeText(url); alert("초대 링크를 복사했어요!\n카카오톡 등에 붙여넣어 보내주세요.\n\n" + url); }
+      catch { prompt("아래 링크를 복사해서 보내주세요", url); }
+    };
+
+    async function handleInvite() {
+      let code = null;
+      try { code = localStorage.getItem("pendingInvite"); } catch {}
+      if (!code) return;
+      try { localStorage.removeItem("pendingInvite"); } catch {}
+      history.replaceState(null, "", location.pathname);
+      if (code === user.uid) return;
+      try {
+        const snap = await getDoc(doc(db, "users", code));
+        if (!snap.exists()) { alert("초대한 친구를 찾을 수 없어요."); return; }
+        const id = pairId(user.uid, code);
+        if ((await getDoc(doc(db, "friendships", id))).exists()) { alert("이미 친구예요!"); return; }
+        if (!confirm(`${snap.data().name}님과 친구가 될까요?`)) return;
+        await setDoc(doc(db, "friendships", id), { members: [user.uid, code].sort(), createdAt: serverTimestamp() });
+        alert(`${snap.data().name}님과 친구가 되었어요!`);
+      } catch (e) {
+        console.error(e);
+        alert("친구 추가에 실패했습니다. 보안 규칙에 friendships 항목이 있는지 확인해주세요.");
+      }
+    }
+
+    // --- 콕 찌르기 (친구당 하루 1번: 문서 ID에 날짜가 들어 있어 두 번째는 저장이 막힘) ---
+    async function poke(toUid) {
+      const date = todayStr();
+      try {
+        await setDoc(doc(db, "pokes", `${user.uid}_${toUid}_${date}`),
+          { from: user.uid, to: toUid, date, fromName: profile.name, createdAt: serverTimestamp() });
+      } catch (e) {
+        console.error(e);
+        alert("콕 찌르기에 실패했습니다. 오늘 이미 보냈거나 보안 규칙에 pokes 항목이 없을 수 있어요.");
+      }
+    }
+    const getDismissed = () => { try { return JSON.parse(localStorage.getItem("dismissedPokes") || "[]"); } catch { return []; } };
+    function renderPokeBanner() {
+      const dismissed = getDismissed();
+      const list = pokesIn.filter(p => !dismissed.includes(p.id));
+      $("poke-banner").classList.toggle("hidden", !list.length);
+      $("poke-banner").innerHTML = list.map(p =>
+        `<div class="row"><span>👉 <b>${esc(p.fromName)}</b>님이 콕 찔렀어요! 연습하세요 🎸</span>
+         <button type="button" class="small" data-dismiss="${p.id}">확인</button></div>`).join("");
+    }
+    $("poke-banner").onclick = (e) => {
+      const b = e.target.closest("[data-dismiss]"); if (!b) return;
+      try { localStorage.setItem("dismissedPokes", JSON.stringify([...getDismissed(), b.dataset.dismiss])); } catch {}
+      renderPokeBanner();
+    };
+
+    // --- 친구 집 (놀러가기, 읽기 전용) ---
+    async function openFriend(uid) {
+      viewing = uid; viewingSongs = null;
+      const t = new Date(); friendCursor = { y: t.getFullYear(), m: t.getMonth() };
+      $("friends-dialog").close();
+      show("visit-view");
+      window.scrollTo(0, 0);
+      renderFriendDialog();
+      try {
+        const snap = await getDocs(collection(db, "users", uid, "songs"));
+        if (viewing !== uid) return;
+        viewingSongs = snap.docs.map(d => d.data())
+          .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
+      } catch (e) { console.error(e); viewingSongs = []; }
+      renderFriendDialog();
+    }
+    function goHome() {
+      viewing = null;
+      show("app-view");
+      window.scrollTo(0, 0);
+    }
+    $("home-btn").onclick = goHome;
+
+    function renderFriendDialog() {
+      if (!viewing) return;
+      const fd = friendData.get(viewing); const p = fd?.profile; if (!p) return;
+      const cnt = monthCount(fd.missions, todayStr().slice(0, 7));
+      const level = levelFor(cnt);
+      const img = CAT_IMAGES[p.catColor]?.[level];
+      $("fd-cat").className = "cat " + p.catColor;
+      $("fd-cat").innerHTML = img ? `<img src="${esc(img)}" alt="">` : "🐱";
+      $("fd-name").textContent = p.name;
+      $("fd-level").textContent = "Lv." + level;
+      $("fd-join").textContent = p.joinDate;
+      $("fd-count").textContent = cnt;
+
+      // 콕 찌르기 버튼 (친구당 하루 1번)
+      const poked = pokedToday.has(viewing);
+      $("fd-poke").innerHTML = poked ? "✅<br>완료" : "👉<br>콕";
+      $("fd-poke").disabled = poked;
+
+      // 월간 달력 (도장 + 밴드 연습)
+      const { y, m } = friendCursor;
+      $("fd-month-label").textContent = `${y}년 ${m + 1}월`;
+      const lead = (new Date(y, m, 1).getDay() + 6) % 7;
+      const last = new Date(y, m + 1, 0).getDate();
+      let html = DOW.map(x => `<div class="dowhead">${x}</div>`).join("");
+      html += `<div class="cell blank"></div>`.repeat(lead);
+      for (let day = 1; day <= last; day++) {
+        const ds = fmt(new Date(y, m, day));
+        html += `<div class="cell${ds === todayStr() ? " today" : ""}"><div class="num">${day}</div>`
+          + (band.has(ds) ? `<div class="band">밴드 연습</div>` : "")
+          + (fd.missions.has(ds) ? `<div class="stamp">🐾</div>` : "") + `</div>`;
+      }
+      $("fd-cal").innerHTML = html;
+
+      // 곡 목록
+      $("fd-songs").innerHTML = viewingSongs === null
+        ? `<span style="color:#888;font-size:14px">불러오는 중...</span>`
+        : viewingSongs.length
+          ? viewingSongs.map(s => `<div class="list-item"><span>🎵 <b>${esc(s.title)}</b>${s.artist ? ` <span style="color:#888">/ ${esc(s.artist)}</span>` : ""}${s.instrument ? ` <span style="color:#d9480f">/ ${esc(s.instrument)}</span>` : ""}</span></div>`).join("")
+          : `<span style="color:#888;font-size:14px">아직 추가한 곡이 없어요.</span>`;
+    }
+    $("fd-poke").onclick = () => { if (viewing) poke(viewing); };
+    $("fd-prev").onclick = () => { const d = new Date(friendCursor.y, friendCursor.m - 1, 1); friendCursor = { y: d.getFullYear(), m: d.getMonth() }; renderFriendDialog(); };
+    $("fd-next").onclick = () => { const d = new Date(friendCursor.y, friendCursor.m + 1, 1); friendCursor = { y: d.getFullYear(), m: d.getMonth() }; renderFriendDialog(); };
+    $("fd-unfriend").onclick = async () => {
+      if (!viewing || !confirm("친구를 삭제할까요? (상대방 목록에서도 사라져요)")) return;
+      try { await deleteDoc(doc(db, "friendships", pairId(user.uid, viewing))); }
+      catch (e) { console.error(e); alert("삭제에 실패했습니다."); }
+    };
+
+    // ===== 내 캐릭터 삭제하기 (삭제 후 새 캐릭터로 다시 시작 가능) =====
+    $("delete-account").onclick = async () => {
+      if (!confirm("캐릭터와 연습 기록(일일 미션, 연습한 곡, 친구 목록)이 모두 삭제되고 되돌릴 수 없어요.\n정말 삭제할까요?")) return;
+      const typed = prompt(`확인을 위해 캐릭터 이름 "${profile.name}"을(를) 입력해주세요.`);
+      if (typed === null) return;
+      if (typed.trim() !== profile.name) { alert("이름이 달라서 삭제하지 않았어요."); return; }
+      const uid = user.uid;
+      unsubs.forEach(f => f()); unsubs = [];   // 실시간 구독 중단
+      try {
+        const [ms, ss, fs] = await Promise.all([
+          getDocs(collection(db, "users", uid, "missions")),
+          getDocs(collection(db, "users", uid, "songs")),
+          getDocs(query(collection(db, "friendships"), where("members", "array-contains", uid)))
+        ]);
+        await Promise.all([...ms.docs, ...ss.docs, ...fs.docs].map(d => deleteDoc(d.ref)));
+        await deleteDoc(doc(db, "users", uid));
+        profile = null; missions = new Set(); songs = [];
+        endSongEdit();
+        $("cat-name").value = ""; $("join-date").value = todayStr();
+        show("create-view");
+        alert("삭제했어요. 새 캐릭터를 다시 만들 수 있어요.");
+      } catch (e) {
+        console.error(e);
+        alert("삭제 중 문제가 생겼어요. 페이지를 새로고침합니다.");
+        location.reload();
+      }
+    };
+  </script>
+</body>
+</html>
