@@ -6,7 +6,15 @@
   <title>호우주의보 연습장</title>
   <style>
     /* 디자인은 나중에 교체 예정 - 지금은 기능 확인용 최소 스타일 */
-    body { font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 12px; }
+    /* 글씨체: 마비옛체 (fonts 폴더 안의 파일). 불러오지 못하면 기본 글씨체로 대체됨 */
+    @font-face {
+      font-family: "MabinogiClassic";
+      src: url("fonts/MabinogiClassic.ttf") format("truetype");
+      font-display: swap;
+    }
+    body { font-family: "MabinogiClassic", sans-serif; max-width: 520px; margin: 0 auto; padding: 12px; }
+    /* 버튼·입력칸은 기본적으로 글씨체를 따라가지 않아서 따로 지정 */
+    button, input, select, textarea { font-family: inherit; }
     section { border: 1px solid #ddd; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
     h3 { margin: 0 0 8px; }
     button { cursor: pointer; }
